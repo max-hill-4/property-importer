@@ -6,7 +6,7 @@ A lightweight property listing and search plugin for UK estate agents. Import pr
 
 ## Features
 
-- **XML Feed Import** — Supports Rightmove V3 XML (10ninety, Jupix, Reapit, Alto, etc.)
+- **XML Feed Import** — Supports any XML feed format via the Field Mapping admin panel. Ships with a preset for Rightmove V3 (10ninety, Jupix, Reapit, Alto)
 - **Auto-sync** — Properties removed from the feed are automatically deleted on next import
 - **Scheduled imports** — Every 30 min, hourly, 2h, 6h, or daily via WP-Cron
 - **AJAX Property Search** — Live filtering by status, bedrooms, and price range — no page reload
@@ -15,6 +15,7 @@ A lightweight property listing and search plugin for UK estate agents. Import pr
 - **Virtual Tour** — Lightbox video overlay from any video URL (Facebook Reels, etc.)
 - **Per-property image control** — Add extra images or exclude specific feed images from the hero
 - **🎨 Styling Panel** — Choose font, accent colour, border radius, and layout from the WP admin — no CSS editing needed
+- **🗺️ Field Mapping** — Map any XML element names to plugin fields, export your config as JSON, import configs from the community
 
 ---
 
@@ -47,6 +48,35 @@ Go to **Properties → 🎨 Styling** in WP Admin to customise:
 | Slider Layout | 3-Up · 2-Up · 1-Up |
 
 All changes apply instantly on save — no CSS files to edit.
+
+---
+
+## Field Mapping
+
+Go to **Properties → 🗺️ Field Mapping** to map XML element names to plugin fields. This makes the plugin work with any CRM or portal export format — not just Rightmove V3.
+
+| Action | How |
+|---|---|
+| **Load preset** | Click _Load Rightmove V3 / 10ninety defaults_ to pre-fill all fields |
+| **Save config** | Click _⬇ Download field-map.json_ to export your mapping as a shareable file |
+| **Load config** | Pick a `.json` file and click _Load into form_ — review fields then save |
+
+### Community configs
+
+If your CRM exports a different XML format, configure the field mapping and **share your config** so others with the same CRM can get started instantly.
+
+**How to share:**
+1. Go to **Properties → 🗺️ Field Mapping** → click **⬇ Download field-map.json**
+2. Open an issue or PR on this repo with your CRM name and attach the file
+3. Or paste the JSON as a [GitHub Gist](https://gist.github.com) and link it in the issues
+
+**Community configs collected so far:**
+
+| CRM / Format | Notes | Download |
+|---|---|---|
+| Rightmove V3 (10ninety, Jupix, Reapit, Alto) | Built-in default — use _Load Rightmove V3 defaults_ | _(built in)_ |
+
+> Got a config working for another CRM? Open an issue — it'll be added to this table.
 
 ---
 

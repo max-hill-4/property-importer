@@ -3,7 +3,7 @@ Contributors: max-hill-4
 Tags: real estate, property, estate agent, lettings, property search
 Requires at least: 6.0
 Tested up to: 6.7
-Stable tag: 1.6
+Stable tag: 1.7
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -66,6 +66,12 @@ Yes. All styles are self-contained and scoped to plugin CSS classes.
 4. Styling admin panel — font, colour, and layout options
 
 == Changelog ==
+
+= 1.7 =
+* Export field mapping as a shareable JSON config file
+* Import JSON config: client-side file reader pre-fills form instantly (no page reload)
+* Server-side JSON import fallback for non-JS environments
+* README: Community Configs section with instructions for sharing CRM mappings
 
 = 1.6 =
 * Field Mapping admin panel: map XML element names to plugin fields

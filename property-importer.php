@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Property Importer
  * Description: Property CPT, XML import, and AJAX search.
- * Version: 1.6
+ * Version: 1.7
  * Author: Your Name
  */
 
@@ -105,6 +105,22 @@ function pi_get_field_map(): array {
     $saved    = get_option('pi_field_map', []);
     return array_merge($defaults, is_array($saved) ? $saved : []);
 }
+
+// Export field map as JSON download (handled early, before headers sent)
+add_action('admin_init', function () {
+    if (
+        isset($_GET['pi_fm_export'])
+        && current_user_can('manage_options')
+        && check_admin_referer('pi_fm_export')
+    ) {
+        $map = pi_get_field_map();
+        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Disposition: attachment; filename="property-importer-field-map.json"');
+        header('Cache-Control: no-cache');
+        echo json_encode($map, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // REGISTER CPT + TAXONOMIES
@@ -705,6 +721,30 @@ function pi_field_mapping_page() {
         echo '<div class="notice notice-success is-dismissible"><p>✅ Field mapping reset to Rightmove V3 defaults.</p></div>';
     }
 
+    if (!empty($_POST['pi_fm_action']) && $_POST['pi_fm_action'] === 'import') {
+        check_admin_referer('pi_fm_nonce', 'pi_fm_nonce_field');
+        $upload = $_FILES['pi_fm_import_file'] ?? null;
+        if ($upload && $upload['error'] === UPLOAD_ERR_OK && $upload['size'] < 65536) {
+            $content = file_get_contents($upload['tmp_name']);
+            $data    = json_decode($content, true);
+            if (is_array($data)) {
+                $allowed_keys = array_keys(pi_rightmove_v3_defaults());
+                $map_import   = [];
+                foreach ($allowed_keys as $k) {
+                    if (isset($data[$k])) {
+                        $map_import[$k] = sanitize_text_field($data[$k]);
+                    }
+                }
+                update_option('pi_field_map', $map_import);
+                echo '<div class="notice notice-success is-dismissible"><p>✅ Field mapping imported and saved.</p></div>';
+            } else {
+                echo '<div class="notice notice-error"><p>❌ Invalid JSON file — could not parse.</p></div>';
+            }
+        } else {
+            echo '<div class="notice notice-error"><p>❌ Upload failed or file too large.</p></div>';
+        }
+    }
+
     $map      = pi_get_field_map();
     $defaults = pi_rightmove_v3_defaults();
     $card     = 'background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:24px 28px;margin-bottom:24px;';
@@ -757,6 +797,9 @@ function pi_field_mapping_page() {
     .pi-fm-section h2 { margin:0 0 16px;font-size:15px;border-bottom:1px solid #f0f0f0;padding-bottom:10px; }
     .pi-fm-section table { width:100%;border-collapse:collapse; }
     .pi-fm-preset-bar { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px; }
+    .pi-fm-io { display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start; }
+    .pi-fm-io-col { flex:1;min-width:220px; }
+    .pi-fm-io-col h3 { font-size:13px;font-weight:600;margin:0 0 8px;color:#1d2327; }
     </style>
 
     <div class="wrap">
@@ -766,7 +809,35 @@ function pi_field_mapping_page() {
             Use <strong>Load Rightmove V3 defaults</strong> if your CRM exports in Rightmove V3 format (10ninety, Jupix, Reapit, Alto).
         </p>
 
-        <form method="post" id="pi-fm-form">
+        <!-- Export / Import -->
+        <div style="<?= $card ?>padding:18px 24px;border-left:4px solid #368479;">
+            <div class="pi-fm-io">
+                <div class="pi-fm-io-col">
+                    <h3>💾 Save config file</h3>
+                    <p style="color:#666;font-size:12px;margin:0 0 10px;">
+                        Download your current field mapping as a <code>.json</code> file.
+                        Share it so others with the same CRM can import it instantly.
+                    </p>
+                    <a class="button button-secondary"
+                       href="<?= esc_url(wp_nonce_url(admin_url('edit.php?post_type=property&page=property-field-mapping&pi_fm_export=1'), 'pi_fm_export')) ?>">
+                        ⬇ Download field-map.json
+                    </a>
+                </div>
+                <div class="pi-fm-io-col">
+                    <h3>📂 Load config file</h3>
+                    <p style="color:#666;font-size:12px;margin:0 0 10px;">
+                        Upload a <code>.json</code> field mapping exported from this plugin.
+                        Fields will be pre-filled in the form below — review then click <strong>Save</strong>.
+                    </p>
+                    <input type="file" id="pi-fm-file-input" accept=".json,application/json"
+                           style="font-size:13px;display:block;margin-bottom:8px;">
+                    <button type="button" class="button" onclick="piImportFile()">Load into form</button>
+                    <p id="pi-fm-file-status" style="font-size:12px;margin:6px 0 0;color:#368479;display:none;"></p>
+                </div>
+            </div>
+        </div>
+
+        <form method="post" id="pi-fm-form" enctype="multipart/form-data">
             <?php wp_nonce_field('pi_fm_nonce', 'pi_fm_nonce_field'); ?>
             <input type="hidden" name="pi_fm_action" value="save" id="pi-fm-action">
 
@@ -833,6 +904,30 @@ function pi_field_mapping_page() {
             var el = document.getElementById('pi_fm_' + key);
             if (el) el.value = piSaved[key];
         });
+    }
+    function piImportFile() {
+        var input  = document.getElementById('pi-fm-file-input');
+        var status = document.getElementById('pi-fm-file-status');
+        if (!input.files.length) { alert('Pick a .json file first.'); return; }
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                var data = JSON.parse(e.target.result);
+                var loaded = 0;
+                Object.keys(data).forEach(function(key) {
+                    var el = document.getElementById('pi_fm_' + key);
+                    if (el) { el.value = data[key]; loaded++; }
+                });
+                status.style.display = 'block';
+                status.style.color   = '#368479';
+                status.textContent   = '✅ Loaded ' + loaded + ' field(s) — review below then click Save.';
+            } catch(err) {
+                status.style.display = 'block';
+                status.style.color   = '#b32d2e';
+                status.textContent   = '❌ Could not parse JSON: ' + err.message;
+            }
+        };
+        reader.readAsText(input.files[0]);
     }
     </script>
     <?php
