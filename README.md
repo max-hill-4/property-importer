@@ -74,9 +74,9 @@ If your CRM exports a different XML format, configure the field mapping and **sh
 
 | CRM / Format | Notes | Download |
 |---|---|---|
-| Rightmove V3 (10ninety, Jupix, Reapit, Alto) | Built-in default — use _Load Rightmove V3 defaults_ | _(built in)_ |
+| Rightmove V3 — 10ninety, Jupix, Reapit, Alto | Built-in default. Also available as a file below. | [rightmove-v3-10ninety.json](field-mappings/rightmove-v3-10ninety.json) |
 
-> Got a config working for another CRM? Open an issue — it'll be added to this table.
+> Got a config working for another CRM? Open an issue or PR — add your JSON to `field-mappings/` and it'll be listed here.
 
 ---
 
