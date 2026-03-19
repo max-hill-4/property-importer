@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Property Importer
  * Description: Property CPT, XML import, and AJAX search.
- * Version: 1.5
+ * Version: 1.6
  * Author: Your Name
  */
 
@@ -65,6 +65,46 @@ add_action('wp_head', function () {
         . '--ps-card-radius:'   . $card_radius           . 'px;'
         . '}</style>' . "\n";
 }, 5);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FIELD MAP — defaults + getter
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function pi_rightmove_v3_defaults(): array {
+    return [
+        'property_element'  => 'property',
+        'unique_id'         => 'AGENT_REF',
+        'published_flag'    => 'PUBLISHED_FLAG',
+        'published_value'   => '1',
+        'address_1'         => 'ADDRESS_1',
+        'address_2'         => 'ADDRESS_2',
+        'town'              => 'TOWN',
+        'county'            => 'COUNTY',
+        'postcode_1'        => 'POSTCODE1',
+        'postcode_2'        => 'POSTCODE2',
+        'country'           => 'COUNTRY',
+        'display_address'   => 'DISPLAY_ADDRESS',
+        'latitude'          => 'LATITUDE',
+        'longitude'         => 'LONGITUDE',
+        'description'       => 'DESCRIPTION',
+        'summary'           => 'SUMMARY',
+        'price'             => 'PRICE',
+        'bedrooms'          => 'BEDROOMS',
+        'bathrooms'         => 'BATHROOMS',
+        'receptions'        => 'RECEPTIONS',
+        'status_field'      => 'TRANS_TYPE_ID',
+        'status_sale_value' => '1',
+        'status_let_value'  => '2',
+        'image_pattern'     => 'MEDIA_IMAGE_%02d',
+        'image_count'       => '39',
+    ];
+}
+
+function pi_get_field_map(): array {
+    $defaults = pi_rightmove_v3_defaults();
+    $saved    = get_option('pi_field_map', []);
+    return array_merge($defaults, is_array($saved) ? $saved : []);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // REGISTER CPT + TAXONOMIES
@@ -500,6 +540,14 @@ add_action('admin_menu', function () {
         'property-importer',
         'pi_importer_page'
     );
+    add_submenu_page(
+        'edit.php?post_type=property',
+        'Field Mapping',
+        '🗺️ Field Mapping',
+        'manage_options',
+        'property-field-mapping',
+        'pi_field_mapping_page'
+    );
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -635,6 +683,162 @@ function pi_importer_page() {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// FIELD MAPPING ADMIN PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function pi_field_mapping_page() {
+
+    if (!empty($_POST['pi_fm_action']) && $_POST['pi_fm_action'] === 'save') {
+        check_admin_referer('pi_fm_nonce', 'pi_fm_nonce_field');
+        $allowed_keys = array_keys(pi_rightmove_v3_defaults());
+        $map = [];
+        foreach ($allowed_keys as $key) {
+            $map[$key] = sanitize_text_field($_POST['pi_fm'][$key] ?? '');
+        }
+        update_option('pi_field_map', $map);
+        echo '<div class="notice notice-success is-dismissible"><p>✅ Field mapping saved.</p></div>';
+    }
+
+    if (!empty($_POST['pi_fm_action']) && $_POST['pi_fm_action'] === 'reset') {
+        check_admin_referer('pi_fm_nonce', 'pi_fm_nonce_field');
+        delete_option('pi_field_map');
+        echo '<div class="notice notice-success is-dismissible"><p>✅ Field mapping reset to Rightmove V3 defaults.</p></div>';
+    }
+
+    $map      = pi_get_field_map();
+    $defaults = pi_rightmove_v3_defaults();
+    $card     = 'background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:24px 28px;margin-bottom:24px;';
+    $inp      = 'width:100%;max-width:340px;padding:6px 10px;border:1px solid #c3c4c7;border-radius:4px;font-size:13px;font-family:monospace;';
+    $th       = 'width:200px;padding:8px 0;font-weight:600;font-size:13px;color:#1d2327;vertical-align:middle;';
+    $td       = 'padding:8px 0;vertical-align:middle;';
+    $hint     = 'color:#999;font-size:11px;margin:3px 0 0;display:block;font-family:monospace;';
+
+    $sections = [
+        'Feed Structure' => [
+            'property_element' => ['Property XML element', 'The XML tag wrapping each property — e.g. property'],
+            'unique_id'        => ['Unique ID field',      'Field used to match existing records — e.g. AGENT_REF'],
+            'published_flag'   => ['Published flag field', 'Field that controls visibility — e.g. PUBLISHED_FLAG'],
+            'published_value'  => ['Published flag value', 'Value that means "active" — e.g. 1'],
+        ],
+        'Content' => [
+            'description' => ['Description', 'Full property description → post body — e.g. DESCRIPTION'],
+            'summary'     => ['Summary',     'Short excerpt → post excerpt — e.g. SUMMARY'],
+        ],
+        'Address' => [
+            'address_1'      => ['Address line 1',   'e.g. ADDRESS_1'],
+            'address_2'      => ['Address line 2',   'e.g. ADDRESS_2'],
+            'town'           => ['Town / City',       'e.g. TOWN'],
+            'county'         => ['County',            'e.g. COUNTY'],
+            'postcode_1'     => ['Postcode part 1',  'e.g. POSTCODE1 (district, e.g. NN10)'],
+            'postcode_2'     => ['Postcode part 2',  'e.g. POSTCODE2 (sector, e.g. 0QE) — leave blank if single field'],
+            'country'        => ['Country',           'e.g. COUNTRY'],
+            'display_address'=> ['Display address',  'Human-readable address — e.g. DISPLAY_ADDRESS'],
+            'latitude'       => ['Latitude',          'e.g. LATITUDE'],
+            'longitude'      => ['Longitude',         'e.g. LONGITUDE'],
+        ],
+        'Property Details' => [
+            'price'      => ['Price',      'e.g. PRICE'],
+            'bedrooms'   => ['Bedrooms',   'e.g. BEDROOMS'],
+            'bathrooms'  => ['Bathrooms',  'e.g. BATHROOMS'],
+            'receptions' => ['Receptions', 'e.g. RECEPTIONS'],
+        ],
+        'Status / Transaction' => [
+            'status_field'      => ['Status field',      'Field that determines sale vs. let — e.g. TRANS_TYPE_ID'],
+            'status_sale_value' => ['Sale value',        'Value meaning For Sale — e.g. 1'],
+            'status_let_value'  => ['Let value',         'Value meaning To Let — e.g. 2'],
+        ],
+        'Images' => [
+            'image_pattern' => ['Image field pattern', 'printf pattern for image fields — e.g. MEDIA_IMAGE_%02d'],
+            'image_count'   => ['Image count',         'Number of image slots (0-based count) — e.g. 39'],
+        ],
+    ];
+    ?>
+    <style>
+    .pi-fm-section h2 { margin:0 0 16px;font-size:15px;border-bottom:1px solid #f0f0f0;padding-bottom:10px; }
+    .pi-fm-section table { width:100%;border-collapse:collapse; }
+    .pi-fm-preset-bar { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px; }
+    </style>
+
+    <div class="wrap">
+        <h1 style="margin-bottom:6px;">Property Plugin — Field Mapping</h1>
+        <p style="color:#666;font-size:13px;margin-bottom:24px;">
+            Map XML field names to plugin fields so any XML feed format can be imported.
+            Use <strong>Load Rightmove V3 defaults</strong> if your CRM exports in Rightmove V3 format (10ninety, Jupix, Reapit, Alto).
+        </p>
+
+        <form method="post" id="pi-fm-form">
+            <?php wp_nonce_field('pi_fm_nonce', 'pi_fm_nonce_field'); ?>
+            <input type="hidden" name="pi_fm_action" value="save" id="pi-fm-action">
+
+            <!-- Preset bar -->
+            <div style="<?= $card ?>padding:16px 24px;">
+                <div class="pi-fm-preset-bar">
+                    <strong style="font-size:13px;">Preset:</strong>
+                    <button type="button" class="button button-secondary" onclick="piLoadDefaults()">
+                        Load Rightmove V3 / 10ninety defaults
+                    </button>
+                    <button type="button" class="button" onclick="piResetToSaved()">
+                        Reset to last saved
+                    </button>
+                </div>
+                <p style="color:#999;font-size:12px;margin:6px 0 0;">
+                    Clicking "Load defaults" only pre-fills the form — you must click <strong>Save Field Mapping</strong> below to apply.
+                </p>
+            </div>
+
+            <?php foreach ($sections as $section_title => $fields) : ?>
+            <div style="<?= $card ?>" class="pi-fm-section">
+                <h2><?= esc_html($section_title) ?></h2>
+                <table>
+                    <?php foreach ($fields as $key => [$label, $hint]) : ?>
+                    <tr>
+                        <th style="<?= $th ?>"><?= esc_html($label) ?></th>
+                        <td style="<?= $td ?>">
+                            <input type="text"
+                                   name="pi_fm[<?= esc_attr($key) ?>]"
+                                   id="pi_fm_<?= esc_attr($key) ?>"
+                                   value="<?= esc_attr($map[$key] ?? '') ?>"
+                                   data-default="<?= esc_attr($defaults[$key] ?? '') ?>"
+                                   style="<?= $inp ?>">
+                            <span style="<?= $hint ?>"><?= esc_html($hint) ?></span>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+            <?php endforeach; ?>
+
+            <div style="display:flex;gap:12px;align-items:center;">
+                <?php submit_button('Save Field Mapping', 'primary', 'submit', false); ?>
+                <button type="submit" class="button button-link-delete"
+                        onclick="document.getElementById('pi-fm-action').value='reset';return confirm('Reset to Rightmove V3 defaults?')">
+                    Reset to defaults
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+    var piDefaults = <?= json_encode($defaults) ?>;
+    var piSaved    = <?= json_encode($map) ?>;
+
+    function piLoadDefaults() {
+        Object.keys(piDefaults).forEach(function(key) {
+            var el = document.getElementById('pi_fm_' + key);
+            if (el) el.value = piDefaults[key];
+        });
+    }
+    function piResetToSaved() {
+        Object.keys(piSaved).forEach(function(key) {
+            var el = document.getElementById('pi_fm_' + key);
+            if (el) el.value = piSaved[key];
+        });
+    }
+    </script>
+    <?php
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // BACKFILL TOOL
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -689,26 +893,39 @@ function pi_import_from_xml($xml_url) {
         return;
     }
 
+    $map = pi_get_field_map();
+
+    // Helper: read a mapped field from an XML node
+    $f = function($node, string $key) use ($map): string {
+        $field = $map[$key] ?? '';
+        if (empty($field)) return '';
+        return trim((string) $node->$field);
+    };
+
     $imported  = 0;
     $updated   = 0;
     $skipped   = 0;
     $feed_refs = [];
 
-    foreach ($xml->property as $property) {
+    $element = $map['property_element'] ?: 'property';
 
-        $agent_ref = trim((string) $property->AGENT_REF);
+    foreach ($xml->$element as $property) {
+
+        $agent_ref = $f($property, 'unique_id');
         if (empty($agent_ref)) { $skipped++; continue; }
 
-        if (trim((string) $property->PUBLISHED_FLAG) !== '1') { $skipped++; continue; }
+        $pub_flag  = $map['published_flag']  ?? '';
+        $pub_value = $map['published_value'] ?? '1';
+        if ($pub_flag && $f($property, 'published_flag') !== $pub_value) { $skipped++; continue; }
 
         $feed_refs[] = $agent_ref;
 
-        $address_1    = trim((string) $property->ADDRESS_1);
-        $address_2    = trim((string) $property->ADDRESS_2);
-        $town         = trim((string) $property->TOWN);
+        $address_1    = $f($property, 'address_1');
+        $address_2    = $f($property, 'address_2');
+        $town         = $f($property, 'town');
         $post_title   = implode(', ', array_filter([$address_1, $address_2, $town]));
-        $post_content = trim((string) $property->DESCRIPTION);
-        $post_excerpt = trim((string) $property->SUMMARY);
+        $post_content = $f($property, 'description');
+        $post_excerpt = $f($property, 'summary');
 
         $existing = get_posts([
             'post_type'   => 'property',
@@ -737,98 +954,98 @@ function pi_import_from_xml($xml_url) {
 
         if (!$post_id || is_wp_error($post_id)) continue;
 
-        // Core meta
-        update_post_meta($post_id, 'agent_ref',       $agent_ref);
-        update_post_meta($post_id, 'property_ref',    trim((string) $property->PROPERTY_REF));
-        update_post_meta($post_id, 'headline',        trim((string) $property->HEADLINE));
-        update_post_meta($post_id, 'marketing_tag',   trim((string) $property->MARKETING_TAG));
-        update_post_meta($post_id, 'branch_id',       trim((string) $property->BRANCH_ID));
+        // Unique ID
+        update_post_meta($post_id, 'agent_ref', $agent_ref);
+
+        // Rightmove V3 extras — only when using the standard unique_id field
+        if (($map['unique_id'] ?? '') === 'AGENT_REF') {
+            update_post_meta($post_id, 'property_ref',    trim((string) $property->PROPERTY_REF));
+            update_post_meta($post_id, 'headline',        trim((string) $property->HEADLINE));
+            update_post_meta($post_id, 'marketing_tag',   trim((string) $property->MARKETING_TAG));
+            update_post_meta($post_id, 'branch_id',       trim((string) $property->BRANCH_ID));
+            update_post_meta($post_id, 'price_qualifier', trim((string) $property->PRICE_QUALIFIER));
+            update_post_meta($post_id, 'floor_area',      trim((string) $property->FLOOR_AREA));
+            update_post_meta($post_id, 'has_garden',      trim((string) $property->HAS_GARDEN));
+            update_post_meta($post_id, 'has_parking',     trim((string) $property->HAS_PARKING));
+            update_post_meta($post_id, 'is_hmo',          trim((string) $property->IS_HMO));
+            update_post_meta($post_id, 'trans_type_id',   trim((string) $property->TRANS_TYPE_ID));
+            update_post_meta($post_id, 'status_id',       trim((string) $property->STATUS_ID));
+            update_post_meta($post_id, 'prop_sub_id',     trim((string) $property->PROP_SUB_ID));
+            update_post_meta($post_id, 'let_bond',           trim((string) $property->LET_BOND));
+            update_post_meta($post_id, 'let_date_available', trim((string) $property->LET_DATE_AVAILABLE));
+            update_post_meta($post_id, 'let_type_id',        trim((string) $property->LET_TYPE_ID));
+            update_post_meta($post_id, 'let_furn_id',        trim((string) $property->LET_FURN_ID));
+            update_post_meta($post_id, 'let_rent_frequency', trim((string) $property->LET_RENT_FREQUENCY));
+            update_post_meta($post_id, 'council_tax_band',        trim((string) $property->COUNCIL_TAX_BAND));
+            update_post_meta($post_id, 'council_tax_exempt',      trim((string) $property->COUNCIL_TAX_EXEMPT));
+            update_post_meta($post_id, 'council_tax_inc',         trim((string) $property->COUNCIL_TAX_INC));
+            update_post_meta($post_id, 'annual_ground_rent',      trim((string) $property->ANNUAL_GROUND_RENT));
+            update_post_meta($post_id, 'annual_service_charge',   trim((string) $property->ANNUAL_SERVICE_CHARGE));
+            update_post_meta($post_id, 'shared_ownership',        trim((string) $property->SHARED_OWNERSHIP));
+            update_post_meta($post_id, 'shared_ownership_pct',    trim((string) $property->SHARED_OWNERSHIP_PERCENTAGE));
+            update_post_meta($post_id, 'tenure_type_id',          trim((string) $property->TENURE_TYPE_ID));
+            update_post_meta($post_id, 'tenure_unexpired_years',  trim((string) $property->TENURE_UNEXPIRED_YEARS));
+            update_post_meta($post_id, 'create_date', trim((string) $property->CREATE_DATE));
+            update_post_meta($post_id, 'update_date', trim((string) $property->UPDATE_DATE));
+
+            // Taxonomy: property type (Rightmove PROP_SUB_ID)
+            $prop_sub_id = trim((string) $property->PROP_SUB_ID);
+            if ($prop_sub_id) {
+                $sub_type_map = ['8' => 'Flat', '137' => 'Commercial', '178' => 'Studio', '283' => 'Studio'];
+                wp_set_object_terms($post_id, $sub_type_map[$prop_sub_id] ?? 'Property', 'property_type', false);
+            }
+
+            // EPC image, brochure, EPC document (Rightmove-specific field names)
+            update_post_meta($post_id, 'epc_image_url', trim((string) $property->MEDIA_IMAGE_60) ?: '');
+            $brochure = trim((string) $property->MEDIA_DOCUMENT_00);
+            if ($brochure) update_post_meta($post_id, 'brochure_url', $brochure);
+            $epc_doc = trim((string) $property->MEDIA_DOCUMENT_50);
+            if ($epc_doc) update_post_meta($post_id, 'epc_document_url', $epc_doc);
+
+            // Virtual tour
+            $feed_tour = trim((string) $property->MEDIA_VIRTUAL_TOUR_00)
+                      ?: trim((string) $property->MEDIA_VIRTUAL_TOUR_01);
+            if ($feed_tour) update_post_meta($post_id, 'virtual_tour_url', esc_url_raw($feed_tour));
+        }
 
         // Address
         update_post_meta($post_id, 'address_1',       $address_1);
         update_post_meta($post_id, 'address_2',       $address_2);
         update_post_meta($post_id, 'town',            $town);
-        update_post_meta($post_id, 'county',          trim((string) $property->COUNTY));
-        update_post_meta($post_id, 'postcode',        trim((string) $property->POSTCODE1) . ' ' . trim((string) $property->POSTCODE2));
-        update_post_meta($post_id, 'country',         trim((string) $property->COUNTRY));
-        update_post_meta($post_id, 'display_address', trim((string) $property->DISPLAY_ADDRESS));
-        update_post_meta($post_id, 'latitude',        trim((string) $property->LATITUDE));
-        update_post_meta($post_id, 'longitude',       trim((string) $property->LONGITUDE));
+        update_post_meta($post_id, 'county',          $f($property, 'county'));
+        $pc1 = $f($property, 'postcode_1');
+        $pc2 = $f($property, 'postcode_2');
+        update_post_meta($post_id, 'postcode', trim($pc1 . ($pc2 ? ' ' . $pc2 : '')));
+        update_post_meta($post_id, 'country',         $f($property, 'country'));
+        update_post_meta($post_id, 'display_address', $f($property, 'display_address'));
+        update_post_meta($post_id, 'latitude',        $f($property, 'latitude'));
+        update_post_meta($post_id, 'longitude',       $f($property, 'longitude'));
 
         // Property details
-        update_post_meta($post_id, 'price',           trim((string) $property->PRICE));
-        update_post_meta($post_id, 'price_qualifier', trim((string) $property->PRICE_QUALIFIER));
-        update_post_meta($post_id, 'bedrooms',        trim((string) $property->BEDROOMS));
-        update_post_meta($post_id, 'bathrooms',       trim((string) $property->BATHROOMS));
-        update_post_meta($post_id, 'receptions',      trim((string) $property->RECEPTIONS));
-        update_post_meta($post_id, 'floor_area',      trim((string) $property->FLOOR_AREA));
-        update_post_meta($post_id, 'has_garden',      trim((string) $property->HAS_GARDEN));
-        update_post_meta($post_id, 'has_parking',     trim((string) $property->HAS_PARKING));
-        update_post_meta($post_id, 'is_hmo',          trim((string) $property->IS_HMO));
-
-        // Transaction
-        update_post_meta($post_id, 'trans_type_id',   trim((string) $property->TRANS_TYPE_ID));
-        update_post_meta($post_id, 'status_id',       trim((string) $property->STATUS_ID));
-        update_post_meta($post_id, 'prop_sub_id',     trim((string) $property->PROP_SUB_ID));
-
-        // Lettings
-        update_post_meta($post_id, 'let_bond',           trim((string) $property->LET_BOND));
-        update_post_meta($post_id, 'let_date_available', trim((string) $property->LET_DATE_AVAILABLE));
-        update_post_meta($post_id, 'let_type_id',        trim((string) $property->LET_TYPE_ID));
-        update_post_meta($post_id, 'let_furn_id',        trim((string) $property->LET_FURN_ID));
-        update_post_meta($post_id, 'let_rent_frequency', trim((string) $property->LET_RENT_FREQUENCY));
-
-        // Financial
-        update_post_meta($post_id, 'council_tax_band',        trim((string) $property->COUNCIL_TAX_BAND));
-        update_post_meta($post_id, 'council_tax_exempt',      trim((string) $property->COUNCIL_TAX_EXEMPT));
-        update_post_meta($post_id, 'council_tax_inc',         trim((string) $property->COUNCIL_TAX_INC));
-        update_post_meta($post_id, 'annual_ground_rent',      trim((string) $property->ANNUAL_GROUND_RENT));
-        update_post_meta($post_id, 'annual_service_charge',   trim((string) $property->ANNUAL_SERVICE_CHARGE));
-        update_post_meta($post_id, 'shared_ownership',        trim((string) $property->SHARED_OWNERSHIP));
-        update_post_meta($post_id, 'shared_ownership_pct',    trim((string) $property->SHARED_OWNERSHIP_PERCENTAGE));
-        update_post_meta($post_id, 'tenure_type_id',          trim((string) $property->TENURE_TYPE_ID));
-        update_post_meta($post_id, 'tenure_unexpired_years',  trim((string) $property->TENURE_UNEXPIRED_YEARS));
-
-        // Dates
-        update_post_meta($post_id, 'create_date', trim((string) $property->CREATE_DATE));
-        update_post_meta($post_id, 'update_date', trim((string) $property->UPDATE_DATE));
+        update_post_meta($post_id, 'price',      $f($property, 'price'));
+        update_post_meta($post_id, 'bedrooms',   $f($property, 'bedrooms'));
+        update_post_meta($post_id, 'bathrooms',  $f($property, 'bathrooms'));
+        update_post_meta($post_id, 'receptions', $f($property, 'receptions'));
 
         // Taxonomy: status
-        $trans_type_id = trim((string) $property->TRANS_TYPE_ID);
-        $trans_label   = $trans_type_id === '1' ? 'For Sale' : ($trans_type_id === '2' ? 'To Let' : '');
+        $status_val  = $f($property, 'status_field');
+        $sale_val    = $map['status_sale_value'] ?? '1';
+        $let_val     = $map['status_let_value']  ?? '2';
+        $trans_label = $status_val === $sale_val ? 'For Sale' : ($status_val === $let_val ? 'To Let' : '');
         if ($trans_label) wp_set_object_terms($post_id, $trans_label, 'property_status', false);
 
-        // Taxonomy: property type
-        $prop_sub_id = trim((string) $property->PROP_SUB_ID);
-        if ($prop_sub_id) {
-            $sub_type_map = ['8' => 'Flat', '137' => 'Commercial', '178' => 'Studio', '283' => 'Studio'];
-            wp_set_object_terms($post_id, $sub_type_map[$prop_sub_id] ?? 'Property', 'property_type', false);
-        }
-
         // Images — store URLs directly as meta, no sideloading
-        for ($i = 0; $i <= 38; $i++) {
-            $field = 'MEDIA_IMAGE_' . str_pad($i, 2, '0', STR_PAD_LEFT);
+        $pattern     = $map['image_pattern'] ?: 'MEDIA_IMAGE_%02d';
+        $image_count = max(1, intval($map['image_count'] ?: 39));
+        for ($i = 0; $i < $image_count; $i++) {
+            $field = sprintf($pattern, $i);
             $url   = trim((string) $property->$field);
-            $key   = strtolower($field);
+            $key   = 'media_image_' . str_pad($i, 2, '0', STR_PAD_LEFT);
             if (!empty($url)) {
                 update_post_meta($post_id, $key, $url);
             } else {
                 delete_post_meta($post_id, $key);
             }
-        }
-
-        // EPC image, brochure, EPC document
-        update_post_meta($post_id, 'epc_image_url',   trim((string) $property->MEDIA_IMAGE_60) ?: '');
-        $brochure = trim((string) $property->MEDIA_DOCUMENT_00);
-        if ($brochure) update_post_meta($post_id, 'brochure_url', $brochure);
-        $epc_doc = trim((string) $property->MEDIA_DOCUMENT_50);
-        if ($epc_doc) update_post_meta($post_id, 'epc_document_url', $epc_doc);
-        
-        // Virtual tour — tries _00 then _01, only overwrites manual entry if feed provides a value
-        $feed_tour = trim((string) $property->MEDIA_VIRTUAL_TOUR_00)
-                  ?: trim((string) $property->MEDIA_VIRTUAL_TOUR_01);
-        if ($feed_tour) {
-            update_post_meta($post_id, 'virtual_tour_url', esc_url_raw($feed_tour));
         }
     }
 

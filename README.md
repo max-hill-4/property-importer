@@ -70,6 +70,11 @@ All changes apply instantly on save — no CSS files to edit.
 
 ## Changelog
 
+### 1.6
+- Field Mapping admin panel: map any XML feed format to plugin fields
+- Preset loader for Rightmove V3 / 10ninety feeds
+- Import function refactored to use configurable field map
+
 ### 1.5
 - Styling admin panel: font, colour, border radius, layout variants
 - Font loaded dynamically from Google Fonts

@@ -3,7 +3,7 @@ Contributors: max-hill-4
 Tags: real estate, property, estate agent, lettings, property search
 Requires at least: 6.0
 Tested up to: 6.7
-Stable tag: 1.5
+Stable tag: 1.6
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -66,6 +66,11 @@ Yes. All styles are self-contained and scoped to plugin CSS classes.
 4. Styling admin panel — font, colour, and layout options
 
 == Changelog ==
+
+= 1.6 =
+* Field Mapping admin panel: map XML element names to plugin fields
+* Preset loader for Rightmove V3 / 10ninety format
+* Import function refactored to read from configurable field map
 
 = 1.5 =
 * Added Styling admin panel: font family, font size, accent colour, border radius
